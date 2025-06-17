@@ -1,0 +1,1 @@
+This bot create events for admin
