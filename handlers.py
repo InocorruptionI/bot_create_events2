@@ -74,16 +74,17 @@ async def create_event(message: Message, state: FSMContext) -> None:
 
 @router.message(Form.type_event)
 async def add_event_type(message: Message, state: FSMContext) -> None:
-    walid_types = ['cвадьба', 'день рождения', 'корпоратив', 'юбилей']
+    walid_types = ['свадьба', 'день рождения', 'корпоратив', 'юбилей']
     if message.text.lower() not in walid_types:
         await message.answer(text='Ваш вариант не подходит ни под один из предложенных. Пожалуйста выберите '
                                   'тип из предложенных: '
                                   'Свадьба, День рождения, Корпоратив')
         return
-    await state.update_data(type_event=message.text)
-    await state.set_state(Form.event_date)
-    await message.answer(text=f'Отлично! Мы начали создание мероприятия "{html.escape(message.text)}"! Едем дальше,'
-                              f'Дата и время проведения? В формате ГГГГ-ММ-ДД')
+    else:
+        await state.update_data(type_event=message.text)
+        await state.set_state(Form.event_date)
+        await message.answer(text=f'Отлично! Мы начали создание мероприятия "{html.escape(message.text)}"! Едем дальше,'
+                                  f'Дата и время проведения? В формате ГГГГ-ММ-ДД')
 
 
 @router.message(Form.event_date)
@@ -92,18 +93,17 @@ async def add_event_date(message: Message, state: FSMContext):
         year, month, day = list(map(int, message.text.split('-')))
         valid_str = message.text.replace('-', '').isdigit()
         valid_len = message.text.replace('-', '')
-        if not valid_str and not re.search(r'^\d{4}-\d{2}-\d{2}$', message.text) and \
-                datetime.now() >= datetime(year, month, day) or valid_len != 8:
+        if not valid_str and not re.search(r'^\d{4}-\d{2}-\d{2}$', message.text) or \
+                datetime.now() >= datetime(year, month, day):
             await message.answer(text='Что-то тут вы ввели не так, пробуем еще раз! Пример: ГГГГ-ММ-ДД')
             return
-        else:
-            await state.update_data(event_date=message.text)
-            await state.set_state(Form.venue)
-            await message.answer(text='Я записал!\n'
-                                      '<b>Укажите место проведения:</b> (ресторан, открытая площадка, '
-                                      'загородный дом и т.д. в свободной форме)\n'
-                                      '<s>*Зачем*:</s> Влияет на технические аспекты (звук, свет, сцена), логистику и '
-                                      'взаимодействие с персоналом площадки.', parse_mode=ParseMode.HTML)
+
+        await state.update_data(event_date=message.text)
+        await state.set_state(Form.venue)
+        await message.answer(text='<b>Укажите место проведения:</b> (ресторан, открытая площадка, '
+                                    'загородный дом и т.д. в свободной форме)\n\n'
+                                    '<u>*Зачем*:</u> Влияет на технические аспекты (звук, свет, сцена), логистику и '
+                                    'взаимодействие с персоналом площадки.', parse_mode=ParseMode.HTML)
     except ValueError:
         await message.answer(text='Что-то тут вы ввели не так, давайте попробуем еще раз! Пример: ГГГГ-ММ-ДД')
         return
@@ -113,9 +113,10 @@ async def add_event_date(message: Message, state: FSMContext):
 async def add_venue(message: Message, state: FSMContext):
     await state.update_data(venue=message.text)
     await state.set_state(Form.num_guests)
-    await message.answer(text='Укажите количество гостей\n'
-                              '*Зачем*: Определяет масштаб мероприятия, выбор активностей, '
-                              'количество необходимых ресурсов (например, микрофонов, мест для рассадки).')
+    await message.answer(text='<b>Укажите количество гостей</b>\n\n'
+                              '<u>*Зачем*</u>: Определяет масштаб мероприятия, выбор активностей, '
+                              'количество необходимых ресурсов (например, микрофонов, мест для рассадки).',
+                         parse_mode=ParseMode.HTML)
 
 @router.message(Form.num_guests)
 async def add_num_guests(message: Message, state: FSMContext):
