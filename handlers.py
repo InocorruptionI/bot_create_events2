@@ -36,6 +36,8 @@ class Form(StatesGroup):
     emotions_guests = State() #Какие эмоции вы хотите, чтобы гости испытали?
     key_poinst_or_traditions = State() #Есть ли ключевые моменты или традиции, которые обязательно должны быть включены?
     special_guests = State() #Есть ли гости, которых нужно особо выделить?
+    #Промежуточная часть для "special_guests" для записи важных гостей
+    add_guests = State() #Произведение записи важных гостей
     #Часть 3
     performances_artists = State() #Планируются ли выступления артистов?
     media = State() #Хотите ли вы включить видеопрезентации, слайд-шоу или другие медиа?
@@ -175,7 +177,76 @@ async def add_atmosphere(message: Message, state: FSMContext):
 @router.message(Form.specific_topic)
 async def add_specific_topic(message: Message, state: FSMContext):
     await state.update_data(specific_topic=message.text)
-    pass
+    await state.set_state(Form.emotions_guests)
+    await message.answer(text='<b>Какие эмоции вы хотите, чтобы гости испытали?</b>\n'
+                              '<u>*Зачем*:</u> Помогает выстроить сценарий так, чтобы он вызывал нужные эмоции '
+                              '(радость, ностальгия, вдохновение). Напишите в свободной форме.',
+                         parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.emotions_guests)
+async def add_emotions_guests(message: Message, state: FSMContext):
+    await state.update_data(emotions_guests=message.text)
+    await state.set_state(Form.key_poinst_or_traditions)
+    await message.answer(text='<b>Есть ли ключевые моменты или традиции, '
+                              'которые обязательно должны быть включены?</b> (например, первый танец на свадьбе, вынос '
+                              'торта, корпоративные награждения).\n'
+                              'Напишите в свободной форме.', parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.key_poinst_or_traditions)
+async def add_key_point_or_traditions(message: Message, state: FSMContext):
+    await state.update_data(key_point_or_traditions=message.text)
+    await state.set_state(Form.special_guests)
+    await message.answer(text='<b>Есть ли гости, которых нужно особо выделить?</b> (например, почетные гости, '
+                              'родственники, руководители). Напишите Да/Нет для продолжения.', parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.special_guests)
+async def add_special_guests(message: Message, state: FSMContext):
+    if message.text.lower() not in ['да', 'нет']:
+        await message.answer(text='Пожалуйста введите один вариант из предложенных: Да/Нет')
+        return
+    if message.text.lower() == 'да':
+        await state.update_data(list_special_guests=[])
+        await message.answer(text='Введите ФИО гостя. Либо напишите "Закончить"')
+        await state.set_state(Form.add_guests)
+    else:
+        await state.update_data(list_special_guests = message.text)
+        await message.answer(text='Хорошо, продолжим!')
+        await state.set_state(Form.performances_artists)
+        await message.answer(text='<b>Планируются ли выступления артистов?</b>\n'
+                                  '(музыканты, танцоры, шоу-программы).\n'
+                                  '<u>*Зачем*:</u> Влияет на тайминг, '
+                                  'техническое обеспечение и координацию с подрядчиками.\n'
+                                  'Напишите в свободной форме.', parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.add_guests)
+async def add_add_guests(message: Message, state: FSMContext):
+    data = await state.get_data()
+    list_special_guests = data.get('list_special_guests', [])
+
+    if message.text.lower() == 'закончить':
+        await message.answer(text=f'Вот все гости которых вы ввели: {list_special_guests}')
+        await state.set_state(Form.performances_artists)
+        await message.answer(text='<b>Планируются ли выступления артистов?</b>\n'
+                                  '(музыканты, танцоры, шоу-программы).\n'
+                                  '<u>*Зачем*:</u> Влияет на тайминг, '
+                                  'техническое обеспечение и координацию с подрядчиками.\n'
+                                  'Напишите в свободной форме.', parse_mode=ParseMode.HTML)
+        return
+    list_special_guests.append(message.text)
+    await state.update_data(list_special_guests=list_special_guests)
+    await message.answer(text='Записал! Введите следующее ФИО или напишите "Закончить"')
+
+
+@router.message(Form.performances_artists)
+async def add_performances_artists(message: Message, state: FSMContext):
+    await state.update_data(performances_artists=message.text)
+    await state.set_state(Form.media)
+    await message.answer(text='<b>Хотите ли вы включить видеопрезентации, слайд-шоу или другие медиа?</b>\n'
+                              '<u>*Зачем*:</u> Требует подготовки оборудования (проектор, экран) и контента.')
 
 
 @router.message(Form.event_info)
