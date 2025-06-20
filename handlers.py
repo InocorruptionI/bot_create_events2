@@ -24,13 +24,34 @@ router = Router()
 
 
 class Form(StatesGroup):
+    #Часть 1
     type_event = State()#Тип мероприятия
     event_date = State() #Дата проведения мероприятия
     venue = State()  #Место проведения
     num_guests = State()  #Количество гостей
     budget_event = State()  # Место проведения
+    #Часть 2
     atmosphere = State()  #Какая будет атмосфера
     specific_topic = State()  # Есть ли конкретная тема мероприятия
+    emotions_guests = State() #Какие эмоции вы хотите, чтобы гости испытали?
+    key_poinst_or_traditions = State() #Есть ли ключевые моменты или традиции, которые обязательно должны быть включены?
+    special_guests = State() #Есть ли гости, которых нужно особо выделить?
+    #Часть 3
+    performances_artists = State() #Планируются ли выступления артистов?
+    media = State() #Хотите ли вы включить видеопрезентации, слайд-шоу или другие медиа?
+    time_programm = State() #Есть ли у вас пожелания по таймингу программы?
+    #Часть 4
+    responsible_for_the_event = State() #Кто отвечает за координацию мероприятия?
+    contractors_of_the_event = State() #Какие подрядчики уже задействованы?
+    all_time_event = State() #Какой тайминг у мероприятия?
+    restrictions_of_the_site = State() #Есть ли ограничения на площадке?
+    #Часть 5
+    history_or_significant_points = State() #Есть ли у вас особая история или значимые моменты,
+                                            # которые можно включить в программу?
+    forbidden_at_the_event = State() #Есть ли что-то, чего вы категорически не хотите на мероприятии?
+    #Часть 6
+    dress_code = State() #Есть ли дресс-код для гостей или ведущего?
+    additional_services = State() #Нужны ли дополнительные услуги?
     event_info = State()
     contact_phone = State()
 
@@ -43,7 +64,7 @@ class DataEvent:
         self.budget_event = None #Бюджет мероприятия
         self.num_guests = None #Количество гостей
         self.atmosphere = None #Какая будет атмосфера
-        self.specific_topic = None #Есть ли конкретная тема мероприятия
+        self.specific_topic = None #сть ли конкретная тема мероприятия
         self.info = None
         self.phone = None
 
@@ -123,9 +144,9 @@ async def add_num_guests(message: Message, state: FSMContext):
     if message.text.isdigit():
         await state.update_data(num_guests=int(message.text))
         await state.set_state(Form.budget_event)
-        await message.answer(text='Укажите бюджет мероприятия\n '
-                                  'Зачем*: Помогает понять, какие услуги и шоу-программы можно предложить, '
-                                  'чтобы уложиться в финансовые рамки.')
+        await message.answer(text='<b>Укажите бюджет мероприятия</b>\n '
+                                  '<u>Зачем*:</u> Помогает понять, какие услуги и шоу-программы можно предложить, '
+                                  'чтобы уложиться в финансовые рамки.', parse_mode=ParseMode.HTML)
     else:
         await message.answer(text='Вы ввели неправильный формат. Пожалуйста введите количество гостей согласно примеру.'
                                   '(Пример: 31)')
@@ -136,7 +157,25 @@ async def add_num_guests(message: Message, state: FSMContext):
 async def add_budget(message: Message, state: FSMContext):
     await state.update_data(budget_event=message.text)
     await state.set_state(Form.atmosphere)
-    await message.answer(text='Какую атмосферу вы хотите создать?')
+    await message.answer(text='<b>Какую атмосферу вы хотите создать?</b>\n'
+                              '(веселую, трогательную, элегантную, неформальную и т.д. введите ответ в свободной форме)')
+
+
+@router.message(Form.atmosphere)
+async def add_atmosphere(message: Message, state: FSMContext):
+    await state.update_data(atmosphere=message.text)
+    await state.set_state(Form.specific_topic)
+    await message.answer(text='<b>Часть 2: Цели и пожелания заказчика</b>\n\n'
+                              '<b>Есть ли конкретная тема мероприятия?</b>\n'
+                              '(например, свадьба в стиле "Гэтсби", корпоратив в морской тематике).\n'
+                              '<u>*Зачем*:</u> Позволяет разработать уникальный сценарий, декор и активности, '
+                              'соответствующие тематике.', parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.specific_topic)
+async def add_specific_topic(message: Message, state: FSMContext):
+    await state.update_data(specific_topic=message.text)
+    pass
 
 
 @router.message(Form.event_info)
