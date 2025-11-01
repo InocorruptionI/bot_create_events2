@@ -14,8 +14,7 @@ from aiogram.types import Message, CallbackQuery, User, ReplyKeyboardRemove
 from datetime import datetime
 
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-
+from aiogram.fsm.state import State, StatesGroup, default_state
 
 redis_client = Redis(host='localhost', port=6379, db=0, decode_responses=True)
 
@@ -44,17 +43,11 @@ class Form(StatesGroup):
     time_programm = State() #Есть ли у вас пожелания по таймингу программы?
     #Часть 4
     responsible_for_the_event = State() #Кто отвечает за координацию мероприятия?
-    contractors_of_the_event = State() #Какие подрядчики уже задействованы?
     all_time_event = State() #Какой тайминг у мероприятия?
     restrictions_of_the_site = State() #Есть ли ограничения на площадке?
-    #Часть 5
-    history_or_significant_points = State() #Есть ли у вас особая история или значимые моменты,
-                                            # которые можно включить в программу?
     forbidden_at_the_event = State() #Есть ли что-то, чего вы категорически не хотите на мероприятии?
-    #Часть 6
+    #Часть 5
     dress_code = State() #Есть ли дресс-код для гостей или ведущего?
-    additional_services = State() #Нужны ли дополнительные услуги?
-    event_info = State()
     contact_phone = State()
 
 
@@ -196,7 +189,7 @@ async def add_emotions_guests(message: Message, state: FSMContext):
 
 @router.message(Form.key_poinst_or_traditions)
 async def add_key_point_or_traditions(message: Message, state: FSMContext):
-    await state.update_data(key_point_or_traditions=message.text)
+    await state.update_data(key_points_or_traditions=message.text)
     await state.set_state(Form.special_guests)
     await message.answer(text='<b>Есть ли гости, которых нужно особо выделить?</b> (например, почетные гости, '
                               'родственники, руководители). Напишите Да/Нет для продолжения.', parse_mode=ParseMode.HTML)
@@ -215,7 +208,8 @@ async def add_special_guests(message: Message, state: FSMContext):
         await state.update_data(list_special_guests = message.text)
         await message.answer(text='Хорошо, продолжим!')
         await state.set_state(Form.performances_artists)
-        await message.answer(text='<b>Планируются ли выступления артистов?</b>\n'
+        await message.answer(text='<b>Часть 3:</b> Программа и развлечения\n\n'
+                                  '<b>Планируются ли выступления артистов?</b>\n'
                                   '(музыканты, танцоры, шоу-программы).\n'
                                   '<u>*Зачем*:</u> Влияет на тайминг, '
                                   'техническое обеспечение и координацию с подрядчиками.\n'
@@ -246,30 +240,99 @@ async def add_performances_artists(message: Message, state: FSMContext):
     await state.update_data(performances_artists=message.text)
     await state.set_state(Form.media)
     await message.answer(text='<b>Хотите ли вы включить видеопрезентации, слайд-шоу или другие медиа?</b>\n'
-                              '<u>*Зачем*:</u> Требует подготовки оборудования (проектор, экран) и контента.')
+                              '<u>*Зачем*:</u> Требует подготовки оборудования (проектор, экран) и контента.\n'
+                              'Введите Да/Нет',
+                         parse_mode=ParseMode.HTML)
 
 
-@router.message(Form.event_info)
-async def add_info(message: Message, state: FSMContext):
-    test_check = ['Формат:', 'Имена гостей:', 'Мелочи:']
-    for check in test_check:
-        if check not in message.text:
-            await message.answer(text='Вы ввели не по шаблону. Пожалуйста введите текст по примеру. \n'
-                                      'Пример: Формат: текст \n'
-                                      'Имена гостей: текст\n'
-                                      'Мелочи: текст')
-            return
-    await state.update_data(event_info=message.text)
+@router.message(Form.media)
+async def add_media(message: Message, state: FSMContext):
+    if message.text.lower() not in ['да', 'нет']:
+        await message.answer(text='Вы ввели не по шаблону, введите "Да/Нет"')
+        return
+    await state.update_data(media=message.text)
+    await state.set_state(Form.time_programm)
+    await message.answer(text='<b>Есть ли у вас пожелания по таймингу программы?</b>\n'
+                              '(например, короткие тосты, длинные танцевальные блоки).\n'
+                              '<u>*Зачем*:</u> Помогает выстроить сценарий с учетом ритма мероприятия.\n\n'
+                              'Напишите в свободной форме',
+                         parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.time_programm)
+async def add_time_programm(message: Message, state: FSMContext):
+    await state.update_data(time_programm=message.text)
+    await state.set_state(Form.responsible_for_the_event)
+    await message.answer(text='<b>Часть 4:</b> Организационные детали\n\n'
+                              '<b>Кто отвечает за координацию мероприятия?</b>\n'
+                              '(сам заказчик, организатор).\n'
+                              '<u>*Зачем*:</u> Позволяет понять, с кем взаимодействовать по организационным вопросам.',
+                         reply_markup=keyboards.responsible_for_the_event_kb, parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.responsible_for_the_event)
+async def add_responsible_for_the_event(message: Message, state: FSMContext):
+    if message.text.lower() not in ['сам заказчик', 'организатор']:
+        await message.answer(text='Пожалуйста нажмите на одну из кнопок')
+        return
+    await state.update_data(responsible_for_the_event=message.text)
+    await state.set_state(Form.all_time_event)
+    await message.answer(text='<b>Сколько всего времени будет длиться мероприятие?</b>\n'
+                              'Укажите в часах. <u>Пример: 8</u>', parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.all_time_event)
+async def add_all_time_event(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.answer(text='Вы ввели не по примеру, повторите попытку')
+        return
+    await state.update_data(all_time_event=message.text)
+    await state.set_state(Form.restrictions_of_the_site)
+    await message.answer(text='<b>Есть ли ограничения на площадке?</b>\n'
+                              '(например, запрет на громкую музыку после 22:00).\n'
+                              '<u>*Зачем*:</u> Избегает непредвиденных ситуаций и конфликтов с администрацией.\n'
+                              'Напишите в свободной форме', parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.restrictions_of_the_site)
+async def add_restrictions_of_the_site(message: Message, state: FSMContext):
+    await state.update_data(restrictions_of_the_site=message.text)
+    await state.set_state(Form.forbidden_at_the_event)
+    await message.answer(text='<b>Есть ли что-то, чего вы категорически не хотите на мероприятии?</b>\n'
+                              '(например, определенные конкурсы, шутки на чувствительные темы).\n'
+                              '<u>*Зачем*:</u> Избегает неловких ситуаций и конфликтов.\n'
+                              'Напишите в свободной форме.', parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.forbidden_at_the_event)
+async def add_forbidden_at_the_event(message: Message, state: FSMContext):
+    await state.update_data(forbidden_at_the_event=message.text)
+    await state.set_state(Form.dress_code)
+    await message.answer(text='<b>Часть 5:</b> Дополнительные детали\n\n'
+                              '<b>Есть ли дресс-код для гостей или ведущего?</b>\n'
+                              '<u>*Зачем*:</u> Позволяет ведущему соответствовать стилю мероприятия.\n'
+                              'Напишите в свободной форме', parse_mode=ParseMode.HTML)
+
+
+@router.message(Form.dress_code)
+async def add_dress_code(message: Message, state: FSMContext):
+    await state.update_data(dress_code=message.text)
     await state.set_state(Form.contact_phone)
-    await message.answer(text='Отлично, я записал ваш текст. Последний шаг - введите номер телефона для того чтобы '
-                              'я смог с вами связаться в формате: 8-999-888-77-66')
+    await message.answer(text='<b>Последний шаг</b> - введите <b>номер телефона</b> для того чтобы '
+                              'я смог с вами связаться в <u>формате: 8-999-888-77-66</u>', parse_mode=ParseMode.HTML)
 
 
 @router.message(Form.contact_phone)
 async def add_contact_phone(message: Message, state: FSMContext):
     if re.search(r'^\d{1}-\d{3}-\d{3}-\d{2}-\d{2}$', message.text):
         await state.update_data(contact_phone=message.text)
-        await message.answer(text='Поздравляю, мы создали с вами событие!')
+        admin_id = 498037596
+        if message.from_user.id == admin_id:
+            await message.answer(text='<b>Поздравляю, мы создали с вами событие!</b>', parse_mode=ParseMode.HTML,
+                                 reply_markup=keyboards.main_admin_kb)
+        else:
+            await message.answer(text='<b>Поздравляю, мы создали с вами событие!</b>', parse_mode=ParseMode.HTML,
+                                 reply_markup=keyboards.main_user_kb)
         data = await state.get_data()
 
         id_user = message.from_user.id
@@ -280,21 +343,55 @@ async def add_contact_phone(message: Message, state: FSMContext):
         user_event_key = f'event:{user_count_event}'
 
         event_data = {
-            "type": data["type_event"],
-            "date": data["event_date"],
+            "type_event": data["type_event"],
+            "event_date": data["event_date"],
+            "venue": data["venue"],
             "num_guests": data["num_guests"],
-            "event_info": data["event_info"],
-            "telephone": data["contact_phone"]
+            "budget_event": data["budget_event"],
+            "atmosphere": data["atmosphere"],
+            "specific_topic": data["specific_topic"],
+            "emotions_guests": data["emotions_guests"],
+            "key_poinst_or_traditions": data["key_points_or_traditions"],
+            "special_guests": data["list_special_guests"],
+            "performances_artists": data["performances_artists"],
+            "media": data["media"],
+            "time_programm": data["time_programm"],
+            "responsible_for_the_event": data["responsible_for_the_event"],
+            "all_time_event": data["all_time_event"],
+            "restrictions_of_the_site": data["restrictions_of_the_site"],
+            "forbidden_at_the_event": data["forbidden_at_the_event"],
+            "dress_code": data["dress_code"],
+            "contact_phone": data["contact_phone"]
         }
 
         redis_client.hset(user_key, user_event_key, json.dumps(event_data, ensure_ascii=False))
 
 
         event_text = (f"<b>Мероприятие создано!</b>\n"
+                      "Часть 1: Общая информация о мероприятии."
                       f"<b>Тип:</b> {data['type_event']}\n"
                       f"<b>Дата:</b> {data['event_date']}\n"
-                      f"<b>Гостей:</b> {data['num_guests']}\n"
-                      f"<b>Информация:</b> {data['event_info']}\n"
+                      f"<b>Место проведения:</b> {data['venue']}\n"
+                      f"<b>Количество гостей:</b> {data['num_guests']}\n"
+                      f"<b>Бюджет мероприятия:</b> {data['budget_event']}\n"
+                      "Часть 2. Цели и пожелания заказчика."
+                      f"<b>Какую атмосферу вы хотите создать:</b> {data['atmosphere']}\n"
+                      f"<b>Конкретная тема или концепция мероприятия</b> {data['specific_topic']}\n"
+                      f"<b>Какие эмоции вы хотите, чтобы гости испытали?</b> {data['emotions_guests']}\n"
+                      f"<b>Ключевые моменты или традиции, "
+                      f"которые обязательно должны быть включены?</b> {data['key_points_or_traditions']}\n"
+                      f"<b>Гости, которых нужно особо выделить:</b> {data['list_special_guests']}\n"
+                      "Часть 3. Программа и развлечения"
+                      f"<b>Планируются ли выступления артистов?</b> {data['performances_artists']}\n"
+                      f"<b>Хотите ли вы включить видеопрезентации, слайд-шоу или другие медиа?</b> {data['media']}\n"
+                      f"<b> Есть ли у вас пожелания по таймингу программы?</b> {data['time_programm']}\n"
+                      "Часть 4. Организационные детали."
+                      f"<b>Кто отвечает за координацию мероприятия?</b> {data['responsible_for_the_event']}\n"
+                      f"<b>Какой тайминг у мероприятия? В часах:</b> {data['all_time_event']}\n"
+                      f"<b>Есть ли ограничения на площадке?</b> {data['restrictions_of_the_site']}\n"
+                      f"<b>Есть ли что-то, чего вы категорически не хотите на мероприятии?</b> "
+                      f"{data['forbidden_at_the_event']}\n"
+                      f"<b>Есть ли дресс-код для гостей или ведущего?</b> {data['dress_code']}\n"
                       f"<b>Телефон:</b> {data['contact_phone']}")
         id_admin = 498037596
         if id_admin == message.from_user.id:
@@ -323,7 +420,7 @@ async def check_keys_events(message: Message):
             for key, value in (index.items()):
                 real_keys.append(key)
                 event_data_for_admin = json.loads(value)
-                info.append(f'{event_data_for_admin['type']}, дата: {event_data_for_admin['date']}')
+                info.append(f'{event_data_for_admin['type_event']}, дата: {event_data_for_admin['event_date']}')
 
         await message.answer(text='Выберите мероприятие:', reply_markup=keyboards.get_all_events_kb(info, real_keys))
 
@@ -335,7 +432,7 @@ async def check_keys_events(message: Message):
         info = []
         for key, value in (events.items()):
             event_data = json.loads(value)
-            info.append(f'{event_data['type']}, дата: {event_data['date']}')
+            info.append(f'{event_data['type_event']}, дата: {event_data['event_date']}')
 
         if not keys:
             await message.answer(text='У вас еще нет мероприятий')
@@ -350,14 +447,34 @@ async def info_key_for_user(callback: CallbackQuery):
     #Здесь в этой функции мы выводим информацию о выбранном мероприятии
     event_key = callback.data # берем ключ вручную
     id_user = callback.from_user.id # id юзера
-    event_info = json.loads(redis_client.hget(f'user:{id_user}', event_key))
+    data = json.loads(redis_client.hget(f'user:{id_user}', event_key))
 
-    responses = (f'<b>Тип мероприятия:</b> {event_info['type']}\n'
-                 f'<b>Дата проведения:</b> {event_info['date']}\n'
-                 f'<b>Количество гостей:</b> {event_info['num_guests']}\n'
-                 f'<b>Информация о мероприятии:</b> {event_info['event_info']}\n'
-                 f'<b>Номер телефона:</b> {event_info['telephone']}\n\n'
-    )
+    responses = (f"<b>Мероприятие создано!</b>\n"
+                      "Часть 1: Общая информация о мероприятии."
+                      f"<b>Тип:</b> {data['type_event']}\n"
+                      f"<b>Дата:</b> {data['event_date']}\n"
+                      f"<b>Место проведения:</b> {data['venue']}\n"
+                      f"<b>Количество гостей:</b> {data['num_guests']}\n"
+                      f"<b>Бюджет мероприятия:</b> {data['budget_event']}\n"
+                      "Часть 2. Цели и пожелания заказчика."
+                      f"<b>Какую атмосферу вы хотите создать:</b> {data['atmosphere']}\n"
+                      f"<b>Конкретная тема или концепция мероприятия</b> {data['specific_topic']}\n"
+                      f"<b>Какие эмоции вы хотите, чтобы гости испытали?</b> {data['emotions_guests']}\n"
+                      f"<b>Ключевые моменты или традиции, "
+                      f"которые обязательно должны быть включены?</b> {data['key_poinst_or_traditions']}\n"
+                      f"<b>Гости, которых нужно особо выделить:</b> {data['special_guests']}\n"
+                      "Часть 3. Программа и развлечения"
+                      f"<b>Планируются ли выступления артистов?</b> {data['performances_artists']}\n"
+                      f"<b>Хотите ли вы включить видеопрезентации, слайд-шоу или другие медиа?</b> {data['media']}\n"
+                      f"<b> Есть ли у вас пожелания по таймингу программы?</b> {data['time_programm']}\n"
+                      "Часть 4. Организационные детали."
+                      f"<b>Кто отвечает за координацию мероприятия?</b> {data['responsible_for_the_event']}\n"
+                      f"<b>Какой тайминг у мероприятия? В часах:</b> {data['all_time_event']}\n"
+                      f"<b>Есть ли ограничения на площадке?</b> {data['restrictions_of_the_site']}\n"
+                      f"<b>Есть ли что-то, чего вы категорически не хотите на мероприятии?</b> "
+                      f"{data['forbidden_at_the_event']}\n"
+                      f"<b>Есть ли дресс-код для гостей или ведущего?</b> {data['dress_code']}\n"
+                      f"<b>Телефон:</b> {data['contact_phone']}")
 
 
     await callback.message.answer(text=f'<b>Ваше мероприятие:</b> \n{responses}', parse_mode=ParseMode.HTML)

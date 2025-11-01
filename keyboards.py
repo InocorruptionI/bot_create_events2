@@ -28,3 +28,7 @@ def get_all_events_kb(keys_events, real_key):
         keyboard.inline_keyboard.append([InlineKeyboardButton(text=keys_events[key],
                                                               callback_data=real_key[key])])
     return keyboard
+
+
+responsible_for_the_event_kb = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text='Сам заказчик'),
+                                                              KeyboardButton(text='Организатор')]])
